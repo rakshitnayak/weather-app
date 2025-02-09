@@ -24,27 +24,50 @@ app.post("/", function (req, res) {
 
   const url = `https://api.openweathermap.org/data/2.5/weather?q=${query}&appid=${apiKey}&units=${unit}`;
 
-  https.get(url, function (response) {
-    console.log(response.statusCode);
+  https
+    .get(url, function (response) {
+      let rawData = "";
 
-    response.on("data", function (data) {
-      const weatherData = JSON.parse(data);
-      const temp = weatherData.main.temp;
-      const weathDes = weatherData.weather[0].description;
+      response.on("data", function (chunk) {
+        rawData += chunk;
+      });
 
-      res.write(
-        "<h1>the tempertaure in " +
-          query +
-          " is " +
-          temp +
-          " degree celsius</h1>"
-      );
-      res.write(
-        "<p>weather description of the current location is " + weathDes + "<p>"
-      );
-      res.send();
+      response.on("end", function () {
+        try {
+          const weatherData = JSON.parse(rawData);
+
+          if (response.statusCode === 404) {
+            return res.status(response.statusCode).send(
+              `<h1>${
+                weatherData?.message || "Server Busy :(, Please try later"
+              }</h1>
+              <span>Try Again or different City</span><a href="/">here</a>
+              `
+            );
+          } else if (response.statusCode !== 200) {
+            return res
+              .status(response.statusCode)
+              .send(`<h1>Error: ${weatherData.message}</h1>`);
+          }
+
+          const temp = weatherData.main.temp;
+          const weathDes = weatherData.weather[0].description;
+
+          res.write(
+            `<h1>The temperature in ${query} is ${temp} degree celsius</h1>`
+          );
+          res.write(`<p>Weather description: ${weathDes}</p>`);
+          res.send();
+        } catch (error) {
+          res.status(500).send("<h1>Internal Server Error</h1>");
+        }
+      });
+    })
+    .on("error", function (error) {
+      res
+        .status(500)
+        .send("<h1>Failed to connect to the weather service.</h1>");
     });
-  });
 });
 
 app.listen(port, function () {
